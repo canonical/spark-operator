@@ -2,8 +2,10 @@
 
 import logging
 from pathlib import Path
+from subprocess import check_call
 
 import yaml
+from ops.framework import StoredState
 from ops.charm import CharmBase
 from ops.main import main
 from ops.model import ActiveStatus, MaintenanceStatus
@@ -14,6 +16,8 @@ log = logging.getLogger()
 
 
 class SparkCharm(CharmBase):
+    _stored = StoredState()
+
     def __init__(self, *args):
         super().__init__(*args)
 
@@ -22,6 +26,7 @@ class SparkCharm(CharmBase):
             self.model.unit.status = ActiveStatus()
             return
 
+        self._stored.set_default(**self.gen_certs())
         self.image = OCIImageResource(self, "oci-image")
         self.framework.observe(self.on.install, self.set_pod_spec)
         self.framework.observe(self.on.upgrade_charm, self.set_pod_spec)
@@ -36,7 +41,6 @@ class SparkCharm(CharmBase):
             return
 
         metrics_enabled = str(bool(self.model.relations["prometheus"])).lower()
-
         self.model.unit.status = MaintenanceStatus("Setting pod spec")
         self.model.pod.set_spec(
             {
@@ -167,15 +171,15 @@ class SparkCharm(CharmBase):
                                 "files": [
                                     {
                                         "path": "server-cert.pem",
-                                        "content": Path("/run/cert.pem").read_text(),
+                                        "content": self._stored.cert,
                                     },
                                     {
                                         "path": "server-key.pem",
-                                        "content": Path("/run/server.key").read_text(),
+                                        "content": self._stored.key,
                                     },
                                     {
                                         "path": "ca-cert.pem",
-                                        "content": Path("/run/ca.crt").read_text(),
+                                        "content": self._stored.ca,
                                     },
                                 ],
                             }
@@ -200,6 +204,104 @@ class SparkCharm(CharmBase):
             },
         )
         self.model.unit.status = ActiveStatus()
+
+    def gen_certs(self):
+        model = self.model.name
+        app = self.model.app.name
+        Path("/run/ssl.conf").write_text(
+            f"""[ req ]
+default_bits = 2048
+prompt = no
+default_md = sha256
+req_extensions = req_ext
+distinguished_name = dn
+[ dn ]
+C = GB
+ST = Canonical
+L = Canonical
+O = Canonical
+OU = Canonical
+CN = 127.0.0.1
+[ req_ext ]
+subjectAltName = @alt_names
+[ alt_names ]
+DNS.1 = {app}
+DNS.2 = {app}.{model}
+DNS.3 = {app}.{model}.svc
+DNS.4 = {app}.{model}.svc.cluster
+DNS.5 = {app}.{model}.svc.cluster.local
+IP.1 = 127.0.0.1
+[ v3_ext ]
+authorityKeyIdentifier=keyid,issuer:always
+basicConstraints=CA:FALSE
+keyUsage=keyEncipherment,dataEncipherment,digitalSignature
+extendedKeyUsage=serverAuth,clientAuth
+subjectAltName=@alt_names"""
+        )
+
+        check_call(["openssl", "genrsa", "-out", "/run/ca.key", "2048"])
+        check_call(["openssl", "genrsa", "-out", "/run/server.key", "2048"])
+        check_call(
+            [
+                "openssl",
+                "req",
+                "-x509",
+                "-new",
+                "-sha256",
+                "-nodes",
+                "-days",
+                "3650",
+                "-key",
+                "/run/ca.key",
+                "-subj",
+                "/CN=127.0.0.1",
+                "-out",
+                "/run/ca.crt",
+            ]
+        )
+        check_call(
+            [
+                "openssl",
+                "req",
+                "-new",
+                "-sha256",
+                "-key",
+                "/run/server.key",
+                "-out",
+                "/run/server.csr",
+                "-config",
+                "/run/ssl.conf",
+            ]
+        )
+        check_call(
+            [
+                "openssl",
+                "x509",
+                "-req",
+                "-sha256",
+                "-in",
+                "/run/server.csr",
+                "-CA",
+                "/run/ca.crt",
+                "-CAkey",
+                "/run/ca.key",
+                "-CAcreateserial",
+                "-out",
+                "/run/cert.pem",
+                "-days",
+                "365",
+                "-extensions",
+                "v3_ext",
+                "-extfile",
+                "/run/ssl.conf",
+            ]
+        )
+
+        return {
+            "cert": Path("/run/cert.pem").read_text(),
+            "key": Path("/run/server.key").read_text(),
+            "ca": Path("/run/ca.crt").read_text(),
+        }
 
 
 if __name__ == "__main__":
