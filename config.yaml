@@ -1,0 +1,9 @@
+options:
+  metrics-port:
+    type: string
+    default: '10254'
+    description: Metrics port
+  webhook-port:
+    type: string
+    default: '443'
+    description: Webhook port

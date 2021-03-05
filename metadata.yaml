@@ -1,0 +1,22 @@
+name: spark
+display-name: Apache Spark
+summary: Unified analytics engine for large-scale data processing
+description: https://spark.apache.org/
+maintainers:
+  - "Dominik Fleischmann <dominik.fleischmann@canonical.com>"
+  - "Kenneth Koski <kenneth.koski@canonical.com>"
+tags: [spark, big-data, analytics]
+series: [kubernetes]
+resources:
+  oci-image:
+    type: oci-image
+    description: Backing OCI image
+    auto-fetch: true
+    upstream-source: gcr.io/spark-operator/spark-operator:v1beta2-1.2.1-3.0.0 
+provides:
+  spark:
+    interface: spark
+requires:
+  prometheus:
+    interface: prometheus
+min-juju-version: 2.8.6
