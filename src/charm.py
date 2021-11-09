@@ -143,7 +143,7 @@ class SparkCharm(CharmBase):
                             f"--webhook-port={self.model.config['webhook-port']}",
                             f"--webhook-svc-name={self.model.app.name}",
                             f"--webhook-config-name={self.model.app.name}-config",
-                            f"--webhook-namespace-selector=juju-model={self.model.name}",
+                            f"--webhook-namespace-selector=model.juju.is/name={self.model.name}",
                             "--webhook-fail-on-error=true",
                         ],
                         "imageDetails": image_details,
