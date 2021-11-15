@@ -16,13 +16,10 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get install python3-setuptools
-        sudo pip3 install black flake8
+        sudo pip3 install tox
 
-    - name: Check black
-      run: black --check .
-
-    - name: Check flake8
-      run: flake8
+    - name: Run tox
+      run: tox -e lint
 
   test:
     name: Test
