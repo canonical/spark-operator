@@ -34,24 +34,10 @@ jobs:
       with:
         provider: microk8s
         channel: 1.21/stable
+        charmcraft-channel: latest/candidate
 
-    - name: Install dependencies
-      run: |
-        set -eux
-        sudo snap install juju-wait --classic
-        # https://github.com/charmed-kubernetes/actions-operator/issues/27
-        sudo snap refresh charmcraft --channel latest/candidate
-
-    - name: Build and deploy charm
-      run: |
-        set -eux
-        charmcraft pack --destructive-mode
-        juju deploy ./*.charm \
-          --resource oci-image=$(yq eval '.resources.oci-image.upstream-source' metadata.yaml)
-        juju-wait -wvt 300
-
-    - name: Test charm
-      run: kubectl apply -ntesting -f examples/spark-pi.yaml
+    - name: Run integration tests
+      run: sg microk8s -c "tox -e integration -- --model testing --keep-models"
 
     - name: Get all
       run: kubectl get all -A
@@ -68,4 +54,3 @@ jobs:
     - name: Get operator logs
       run: kubectl logs --tail 100 -ntesting -loperator.juju.is/name=spark
       if: failure()
-
