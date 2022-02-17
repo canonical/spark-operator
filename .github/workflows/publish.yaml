@@ -24,4 +24,4 @@ jobs:
         with:
           credentials: ${{ secrets.CHARMCRAFT_CREDENTIALS }}
           charm-path: ./
-          charmcraft-channel: latest/edge
+          charmcraft-channel: latest/stable
