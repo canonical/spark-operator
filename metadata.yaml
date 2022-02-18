@@ -1,7 +1,7 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-name: spark
+name: spark-k8s
 display-name: Apache Spark
 summary: Unified analytics engine for large-scale data processing
 description: https://spark.apache.org/
