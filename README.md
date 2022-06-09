@@ -12,6 +12,17 @@ The Spark Operator may be deployed using the Juju command line as follows
 juju deploy spark-k8s
 ```
 
+## Service account
+
+Running spark job in the namespace other than spark model's namespace requires
+proper service account. Easiest way to create it is to copy the service account
+over from spark namespace. Before running the command replace the `<NEW>` with
+custom namespace name.
+
+```shell
+kubectl get sa spark-k8s -n spark -o yaml | sed 's/namespace: spark/namespace: <NEW>/'  | kubectl create -f -
+```
+
 ## Looking for a fully supported platform for MLOps?
 
 Canonical [Charmed Kubeflow](https://charmed-kubeflow.io) is a state of the art, fully supported MLOps platform that helps data scientists collaborate on AI innovation on any cloud from concept to production, offered by Canonical - the publishers of [Ubuntu](https://ubuntu.com).
