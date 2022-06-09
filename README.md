@@ -20,7 +20,7 @@ over from spark namespace. Before running the command replace the `<NEW>` with
 custom namespace name.
 
 ```shell
-kubectl get sa spark-k8s -n spark -o yaml | sed 's/namespace: spark/namespace: <NEW>/'  | kubectl create -f -
+kubectl get sa spark -n spark -o yaml | sed 's/namespace: spark/namespace: <NEW>/'  | kubectl create -f -
 ```
 
 ## Looking for a fully supported platform for MLOps?
