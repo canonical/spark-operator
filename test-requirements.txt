@@ -1,6 +1,0 @@
-# Copyright 2021 Canonical Ltd.
-# See LICENSE file for licensing details.
-
-black
-flake8<4.1
-flake8-copyright<0.3
