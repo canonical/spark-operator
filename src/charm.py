@@ -10,9 +10,9 @@ import yaml
 from ops.framework import StoredState
 from ops.charm import CharmBase
 from ops.main import main
-from ops.model import ActiveStatus, MaintenanceStatus
-
-from oci_image import OCIImageResource, OCIImageResourceError
+from ops.model import ActiveStatus, MaintenanceStatus, WaitingStatus
+from lightkube import Client, codecs
+from lightkube.resources.core_v1 import ConfigMap
 
 log = logging.getLogger()
 
@@ -23,16 +23,62 @@ class SparkCharm(CharmBase):
     def __init__(self, *args):
         super().__init__(*args)
 
-        if not self.model.unit.is_leader():
-            log.info("Not a leader, skipping set_pod_spec")
-            self.model.unit.status = ActiveStatus()
-            return
+        self._check_leader()
 
         self._stored.set_default(**self.gen_certs())
-        self.image = OCIImageResource(self, "oci-image")
-        self.framework.observe(self.on.install, self.set_pod_spec)
-        self.framework.observe(self.on.upgrade_charm, self.set_pod_spec)
-        self.framework.observe(self.on.config_changed, self.set_pod_spec)
+        self.lightkube_client = Client(
+            namespace=self.model.name, field_manager="lightkube"
+        )
+        self.framework.observe(self.on.spark_pebble_ready, self._on_spark_pebble_ready)
+        # self.framework.observe(self.on.install, self.set_pod_spec)
+        # self.framework.observe(self.on.upgrade_charm, self.set_pod_spec)
+        # self.framework.observe(self.on.config_changed, self.set_pod_spec)
+
+    def _check_leader(self):
+        if not self.unit.is_leader():
+            # We can't do anything useful when not the leader, so do nothing.
+            raise CheckFailedError("Waiting for leadership", WaitingStatus)
+
+    def _on_spark_pebble_ready(self, event):
+        container = event.workload
+        pebble_layer = {
+            "summary": "spark layer",
+            "description": "pebble config layer for spark-k8s",
+            "services": {
+                "spark": {
+                    "override": "replace",
+                    "summary": "apply image?",
+                    "startup": "enabled",
+                    "command": (
+                        f"/usr/bin/tini -s -- /usr/bin/spark-operator -v=2 ",
+                        "-logtostderr ",
+                        f"-namespace={self.model.name} ",
+                        "-enable-ui-service=true ",
+                        "-controller-threads=10 ",
+                        "-resync-interval=30 ",
+                        "-enable-batch-scheduler=false ",
+                        "-enable-metrics=true ",
+                        "-metrics-labels=app_type ",
+                        f"-metrics-port={self.model.config['metrics-port']} ",
+                        "-metrics-endpoint=/metrics ",
+                        "-enable-resource-quota-enforcement=false ",
+                        f"-webhook-svc-namespace={self.model.name} ",
+                        f"-webhook-port={self.model.config['webhook-port']} "
+                        f"-webhook-svc-name={self.model.app.name} ",
+                        f"-webhook-config-name={self.model.app.name}-config ",
+                        f"-webhook-namespace-selector=model.juju.is/name={self.model.name} ",
+                        "-webhook-fail-on-error=true",
+                    ),
+                }
+            },
+        }
+        container.add_layer("spark", pebble_layer, combine=True)
+        container.autostart()
+
+        self.unit.status = ActiveStatus()
+
+    def _create_config_map(self):
+        config = ConfigMap()
 
     def set_pod_spec(self, event):
         try:
@@ -297,6 +343,17 @@ subjectAltName=@alt_names"""
             "key": Path("/run/server.key").read_text(),
             "ca": Path("/run/ca.crt").read_text(),
         }
+
+
+class CheckFailedError(Exception):
+    """Raise this exception if one of the checks in main fails."""
+
+    def __init__(self, msg, status_type=None):
+        super().__init__()
+
+        self.msg = str(msg)
+        self.status_type = status_type
+        self.status = status_type(msg)
 
 
 if __name__ == "__main__":
