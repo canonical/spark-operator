@@ -41,6 +41,12 @@ class SparkCharm(CharmBase):
 
     def _on_spark_pebble_ready(self, event):
         container = event.workload
+
+        # TODO: put paths in config
+        container.push("/etc/webhook-certs/ca-cert.pem", self._stored.ca , make_dirs=True)
+        container.push("/etc/webhook-certs/server-cert.pem", self._stored.cert, make_dirs=True)
+        container.push("/etc/webhook-certs/server-key.pem", self._stored.key, make_dirs=True)
+        
         pebble_layer = {
             "summary": "spark layer",
             "description": "pebble config layer for spark-k8s",
@@ -50,24 +56,25 @@ class SparkCharm(CharmBase):
                     "summary": "apply image?",
                     "startup": "enabled",
                     "command": (
-                        f"/usr/bin/tini -s -- /usr/bin/spark-operator -v=2 ",
-                        "-logtostderr ",
-                        f"-namespace={self.model.name} ",
-                        "-enable-ui-service=true ",
-                        "-controller-threads=10 ",
-                        "-resync-interval=30 ",
-                        "-enable-batch-scheduler=false ",
-                        "-enable-metrics=true ",
-                        "-metrics-labels=app_type ",
-                        f"-metrics-port={self.model.config['metrics-port']} ",
-                        "-metrics-endpoint=/metrics ",
-                        "-enable-resource-quota-enforcement=false ",
-                        f"-webhook-svc-namespace={self.model.name} ",
+                        f"/usr/bin/tini -s -- /usr/bin/spark-operator -v=2 "
+                        "-logtostderr "
+                        f"-namespace={self.model.name} "
+                        "-enable-ui-service=true "
+                        "-controller-threads=10 "
+                        "-resync-interval=30 "
+                        "-enable-batch-scheduler=false "
+                        "-enable-metrics=true "
+                        "-metrics-labels=app_type "
+                        f"-metrics-port={self.model.config['metrics-port']} "
+                        "-metrics-endpoint=/metrics "
+                        "-enable-resource-quota-enforcement=false "
+                        "-enable-webhook=true "
+                        f"-webhook-svc-namespace={self.model.name} "
                         f"-webhook-port={self.model.config['webhook-port']} "
-                        f"-webhook-svc-name={self.model.app.name} ",
-                        f"-webhook-config-name={self.model.app.name}-config ",
-                        f"-webhook-namespace-selector=model.juju.is/name={self.model.name} ",
-                        "-webhook-fail-on-error=true",
+                        f"-webhook-svc-name={self.model.app.name} "
+                        f"-webhook-config-name={self.model.app.name}-config "
+                        f"-webhook-namespace-selector=model.juju.is/name={self.model.name} "
+                        "-webhook-fail-on-error=true"
                     ),
                 }
             },
