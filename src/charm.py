@@ -11,6 +11,7 @@ from charmed_kubeflow_chisme.lightkube.batch import apply_many, delete_many
 from charms.observability_libs.v1.kubernetes_service_patch import KubernetesServicePatch
 from jinja2 import Environment, FileSystemLoader
 from lightkube import Client, codecs
+from lightkube.core.exceptions import ApiError
 from lightkube.generic_resource import create_global_resource
 from lightkube.models.core_v1 import ServicePort
 from lightkube.resources.admissionregistration_v1 import MutatingWebhookConfiguration
@@ -35,7 +36,9 @@ class SparkCharm(CharmBase):
         self.lightkube_client = Client(
             namespace=self.model.name, field_manager="lightkube"
         )
-        port = ServicePort(int(self.model.config['webhook-port']), name=f"{self.app.name}")
+        port = ServicePort(
+            int(self.model.config["webhook-port"]), name=f"{self.app.name}"
+        )
         self.service_patcher = KubernetesServicePatch(self, [port])
 
         self.env = Environment(loader=FileSystemLoader("src"))
@@ -66,15 +69,6 @@ class SparkCharm(CharmBase):
         container.push(
             "/etc/webhook-certs/server-key.pem", self._stored.key, make_dirs=True
         )
-
-        # create webhook svc
-        # service_template = self.env.get_template("manifests.yaml.j2")
-        # service_manifest = service_template.render(
-        #     webhook_port=self.model.config["webhook-port"], app_name=self.app.name
-        # )
-        # for obj in codecs.load_all_yaml(service_manifest):
-        #     log.debug(f"Deploying {obj.metadata.name} of kind {obj.kind}")
-        #     self.lightkube_client.apply(obj, namespace=obj.metadata.namespace)
 
         pebble_layer = {
             "summary": "spark layer",
@@ -111,13 +105,23 @@ class SparkCharm(CharmBase):
         container.add_layer("spark", pebble_layer, combine=True)
         container.autostart()
 
+        with open(Path("src/crds.yaml")) as f:
+            for obj in codecs.load_all_yaml(
+                f, context={}, create_resources_for_crds=True
+            ):
+                self.lightkube_client.apply(obj)
+
         self.unit.status = ActiveStatus()
 
     def _on_remove(self, event):
-        self.lightkube_client.delete(
-            MutatingWebhookConfiguration, self._mutating_webhook_name
-        )
-        # TODO
+        try:
+            self.lightkube_client.delete(
+                MutatingWebhookConfiguration, self._mutating_webhook_name
+            )
+        except ApiError as e:
+            log.warn(str(e))
+        # TODO: remove crds
+        # TODO: is this needed?
         for obj in self.lightkube_client.list(
             resource,
             labels={"app.juju.is/created-by": f"{self.app_name}"},
