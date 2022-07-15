@@ -2,9 +2,10 @@
 # See LICENSE file for licensing details.
 
 import logging
+
 import pytest
-from tenacity import retry, wait_exponential, stop_after_delay, before_log
 from lightkube.resources.core_v1 import Pod
+from tenacity import before_log, retry, stop_after_delay, wait_exponential
 
 log = logging.getLogger(__name__)
 
