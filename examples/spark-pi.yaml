@@ -27,8 +27,6 @@ spec:
   sparkVersion: '3.1.1'
   restartPolicy:
     type: Never
-  sparkConf:
-
   volumes:
     - name: 'test-volume'
       hostPath:
