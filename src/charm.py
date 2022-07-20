@@ -6,7 +6,6 @@ import logging
 from pathlib import Path
 from subprocess import check_call
 
-from charmed_kubeflow_chisme.lightkube.batch import apply_many, delete_many
 from charms.observability_libs.v1.kubernetes_service_patch import KubernetesServicePatch
 from jinja2 import Environment, FileSystemLoader
 from lightkube import Client, codecs
@@ -28,12 +27,8 @@ class SparkCharm(CharmBase):
         super().__init__(*args)
 
         self._stored.set_default(**self.gen_certs())
-        self.lightkube_client = Client(
-            namespace=self.model.name, field_manager="lightkube"
-        )
-        port = ServicePort(
-            int(self.model.config["webhook-port"]), name=f"{self.app.name}"
-        )
+        self.lightkube_client = Client(namespace=self.model.name, field_manager="lightkube")
+        port = ServicePort(int(self.model.config["webhook-port"]), name=f"{self.app.name}")
         self.service_patcher = KubernetesServicePatch(self, [port])
 
         self.env = Environment(loader=FileSystemLoader("src"))
@@ -49,15 +44,9 @@ class SparkCharm(CharmBase):
         container = event.workload
 
         # TODO: put paths in config
-        container.push(
-            "/etc/webhook-certs/ca-cert.pem", self._stored.ca, make_dirs=True
-        )
-        container.push(
-            "/etc/webhook-certs/server-cert.pem", self._stored.cert, make_dirs=True
-        )
-        container.push(
-            "/etc/webhook-certs/server-key.pem", self._stored.key, make_dirs=True
-        )
+        container.push("/etc/webhook-certs/ca-cert.pem", self._stored.ca, make_dirs=True)
+        container.push("/etc/webhook-certs/server-cert.pem", self._stored.cert, make_dirs=True)
+        container.push("/etc/webhook-certs/server-key.pem", self._stored.key, make_dirs=True)
 
         pebble_layer = {
             "summary": "spark layer",
@@ -93,9 +82,7 @@ class SparkCharm(CharmBase):
         }
 
         with open(Path("src/crds.yaml")) as f:
-            for obj in codecs.load_all_yaml(
-                f, context={}, create_resources_for_crds=True
-            ):
+            for obj in codecs.load_all_yaml(f, context={}, create_resources_for_crds=True):
                 self.lightkube_client.apply(obj)
 
         with open(Path("src/rbac.yaml")) as f:
@@ -109,9 +96,7 @@ class SparkCharm(CharmBase):
 
     def _on_remove(self, event):
         try:
-            self.lightkube_client.delete(
-                MutatingWebhookConfiguration, self._mutating_webhook_name
-            )
+            self.lightkube_client.delete(MutatingWebhookConfiguration, self._mutating_webhook_name)
         except ApiError as e:
             log.warn(str(e))
 

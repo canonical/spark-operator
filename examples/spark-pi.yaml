@@ -40,7 +40,7 @@ spec:
     serviceAccount: spark-k8s-driver-account
     volumeMounts:
       - name: 'test-volume'
-        mountPath: '/tmp2'
+        mountPath: '/tmp'
   executor:
     instances: 1
     coreRequest: 100m
@@ -49,4 +49,4 @@ spec:
       version: 3.1.1
     volumeMounts:
       - name: 'test-volume'
-        mountPath: '/tmp3'
+        mountPath: '/tmp'
