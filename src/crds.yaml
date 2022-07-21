@@ -4,6 +4,8 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     api-approved.kubernetes.io: https://github.com/GoogleCloudPlatform/spark-on-k8s-operator/pull/1298
+  labels:
+    app.kubernetes.io/name: spark-k8s
   name: sparkapplications.sparkoperator.k8s.io
 spec:
   group: sparkoperator.k8s.io
@@ -4407,6 +4409,8 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     api-approved.kubernetes.io: https://github.com/GoogleCloudPlatform/spark-on-k8s-operator/pull/1298
+  labels:
+    app.kubernetes.io/name: spark-k8s
   name: scheduledsparkapplications.sparkoperator.k8s.io
 spec:
   group: sparkoperator.k8s.io
