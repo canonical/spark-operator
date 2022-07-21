@@ -5,7 +5,10 @@ metadata:
   annotations:
     api-approved.kubernetes.io: https://github.com/GoogleCloudPlatform/spark-on-k8s-operator/pull/1298
   labels:
-    app.kubernetes.io/name: spark-k8s
+    app.kubernetes.io/name: {{ app_name }}
+    app.juju.is/created-by: {{ app_name }}
+    app.kubernetes.io/managed-by: juju
+    app.kubernetes.io/created-by: lightkube
   name: sparkapplications.sparkoperator.k8s.io
 spec:
   group: sparkoperator.k8s.io
@@ -4410,7 +4413,10 @@ metadata:
   annotations:
     api-approved.kubernetes.io: https://github.com/GoogleCloudPlatform/spark-on-k8s-operator/pull/1298
   labels:
-    app.kubernetes.io/name: spark-k8s
+    app.kubernetes.io/name: {{ app_name }}
+    app.juju.is/created-by: {{ app_name }}
+    app.kubernetes.io/managed-by: juju
+    app.kubernetes.io/created-by: lightkube
   name: scheduledsparkapplications.sparkoperator.k8s.io
 spec:
   group: sparkoperator.k8s.io

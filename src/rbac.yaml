@@ -7,16 +7,21 @@ metadata:
     model.juju.is/name: {{  app_name  }}
   labels:
     app.kubernetes.io/name: {{  app_name  }}
-
+    app.juju.is/created-by: {{  app_name  }}
+    app.kubernetes.io/managed-by: juju
+    app.kubernetes.io/created-by: lightkube
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{  app_name  }}-clusterrole
+  name: {{  model_name  }}-{{  app_name  }}-clusterrole
   annotations:
     model.juju.is/name: {{  app_name  }}
   labels:
     app.kubernetes.io/name: {{  app_name  }}
+    app.juju.is/created-by: {{  app_name  }}
+    app.kubernetes.io/managed-by: juju
+    app.kubernetes.io/created-by: lightkube
 rules:
   - apiGroups:
       - ''
@@ -104,11 +109,14 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: {{  app_name  }}-role
+  name: -{{  app_name  }}-role
   annotations:
     model.juju.is/name: {{  app_name  }}
   labels:
     app.kubernetes.io/name: {{  app_name  }}
+    app.juju.is/created-by: {{  app_name  }}
+    app.kubernetes.io/managed-by: juju
+    app.kubernetes.io/created-by: lightkube
 rules:
 - apiGroups:
   - ""
@@ -143,10 +151,13 @@ metadata:
     model.juju.is/name: {{  app_name  }}
   labels:
     app.kubernetes.io/name: {{  app_name  }}
+    app.juju.is/created-by: {{  app_name  }}
+    app.kubernetes.io/managed-by: juju
+    app.kubernetes.io/created-by: lightkube
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: {{  app_name  }}-role
+  name: -{{  app_name  }}-role
 subjects:
 - kind: ServiceAccount
   name: {{ app_name }}-driver-account
@@ -156,15 +167,18 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   metadata:
-  name: {{  app_name  }}-driver-clusterrolebinding
+  name: {{  model_name  }}-{{  app_name  }}-driver-clusterrolebinding
   annotations:
     model.juju.is/name: {{  app_name  }}
   labels:
     app.kubernetes.io/name: {{  app_name  }}
+    app.juju.is/created-by: {{  app_name  }}
+    app.kubernetes.io/managed-by: juju
+    app.kubernetes.io/created-by: lightkube
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{  app_name  }}-clusterrole
+  name: {{  model_name  }}-{{  app_name  }}-clusterrole
 subjects:
 - kind: ServiceAccount
   name: {{ app_name }}-driver-account

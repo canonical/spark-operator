@@ -2,13 +2,14 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
+import glob
 import logging
 from pathlib import Path
 from subprocess import check_call
 
+from charmed_kubeflow_chisme.kubernetes import KubernetesResourceHandler as KRH
 from charms.observability_libs.v1.kubernetes_service_patch import KubernetesServicePatch
-from jinja2 import Environment, FileSystemLoader
-from lightkube import Client, codecs
+from lightkube import Client
 from lightkube.core.exceptions import ApiError
 from lightkube.models.core_v1 import ServicePort
 from lightkube.resources.admissionregistration_v1 import MutatingWebhookConfiguration
@@ -27,18 +28,35 @@ class SparkCharm(CharmBase):
         super().__init__(*args)
 
         self._stored.set_default(**self.gen_certs())
-        self.lightkube_client = Client(namespace=self.model.name, field_manager="lightkube")
         port = ServicePort(int(self.model.config["webhook-port"]), name=f"{self.app.name}")
         self.service_patcher = KubernetesServicePatch(self, [port])
 
-        self.env = Environment(loader=FileSystemLoader("src"))
-        self.env.globals["app_name"] = self.model.app.name
-        self.env.globals["model_name"] = self.model.name
+        self.lightkube_client = Client(namespace=self.model.name, field_manager="lightkube")
+
+        self.resource_handler = KRH(
+            template_files=self._template_files,
+            context=self._context,
+            field_manager=self.model.app.name,
+        )
 
         self._mutating_webhook_name = f"{self.model.app.name}-webhook-config"
 
         self.framework.observe(self.on.spark_pebble_ready, self._on_spark_pebble_ready)
         self.framework.observe(self.on.remove, self._on_remove)
+
+    @property
+    def _template_files(self):
+        src_dir = Path("src")
+        manifests = [file for file in glob.glob(f"{src_dir}/*.yaml")]
+        return manifests
+
+    @property
+    def _context(self):
+        context = {
+            "app_name": self.model.app.name,
+            "model_name": self.model.name,
+        }
+        return context
 
     def _on_spark_pebble_ready(self, event):
         container = event.workload
