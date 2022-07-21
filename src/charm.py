@@ -99,13 +99,7 @@ class SparkCharm(CharmBase):
             },
         }
 
-        with open(Path("src/crds.yaml")) as f:
-            for obj in codecs.load_all_yaml(f, context={}, create_resources_for_crds=True):
-                self.lightkube_client.apply(obj)
-
-        with open(Path("src/rbac.yaml")) as f:
-            for obj in codecs.load_all_yaml(f, context={}, template_env=self.env):
-                self.lightkube_client.apply(obj)
+        self.resource_handler.apply()
 
         container.add_layer("spark", pebble_layer, combine=True)
         container.autostart()
