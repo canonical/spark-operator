@@ -17,7 +17,7 @@ from lightkube.resources.admissionregistration_v1 import MutatingWebhookConfigur
 from ops.charm import CharmBase
 from ops.framework import StoredState
 from ops.main import main
-from ops.model import ActiveStatus, MaintenanceStatus
+from ops.model import ActiveStatus, MaintenanceStatus, WaitingStatus
 
 log = logging.getLogger()
 
@@ -31,6 +31,7 @@ class SparkCharm(CharmBase):
         super().__init__(*args)
 
         self._stored.set_default(**self.gen_certs())
+
         port = ServicePort(int(self.model.config["webhook-port"]), name=f"{self.app.name}")
         self.service_patcher = KubernetesServicePatch(self, [port])
 
@@ -43,8 +44,13 @@ class SparkCharm(CharmBase):
         )
 
         self._mutating_webhook_name = f"{self.model.app.name}-webhook-config"
+        self._container_name = "spark"
+        self.container = self.unit.get_container(self._container_name)
 
+        self.framework.observe(self.on.install, self._on_spark_pebble_ready)
         self.framework.observe(self.on.spark_pebble_ready, self._on_spark_pebble_ready)
+        self.framework.observe(self.on.config_changed, self._on_config_changed)
+        # self.framework.observe(self.on.config_changed, self.service_patcher._patch)
         self.framework.observe(self.on.remove, self._on_remove)
 
     @property
@@ -61,20 +67,13 @@ class SparkCharm(CharmBase):
         }
         return context
 
-    def _on_spark_pebble_ready(self, event):
-        self.unit.status = MaintenanceStatus("Configuring Spark Charm")
-        container = event.workload
-
-        # TODO: put paths in config
-        container.push("/etc/webhook-certs/ca-cert.pem", self._stored.ca, make_dirs=True)
-        container.push("/etc/webhook-certs/server-cert.pem", self._stored.cert, make_dirs=True)
-        container.push("/etc/webhook-certs/server-key.pem", self._stored.key, make_dirs=True)
-
+    @property
+    def _pebble_layer(self):
         pebble_layer = {
             "summary": "spark layer",
             "description": "pebble config layer for spark-k8s",
             "services": {
-                "spark": {
+                self._container_name: {
                     "override": "replace",
                     "summary": "Spark Operator layer",
                     "startup": "enabled",
@@ -99,18 +98,43 @@ class SparkCharm(CharmBase):
                         f"-webhook-namespace-selector=model.juju.is/name={self.model.name} "
                         "-webhook-fail-on-error=true"
                     ),
+                    "environment": {"KUBERNETES_SERVICE_PORT": self.model.config["webhook-port"]},
                 }
             },
         }
+        return pebble_layer
+
+    def _on_spark_pebble_ready(self, event):
+
+        if not self.container.can_connect():
+            self.unit.status = WaitingStatus("Waiting to connect to spark container")
+            event.defer()
+            return
+
+        self.unit.status = MaintenanceStatus("Configuring Spark Charm")
+
+        self.container.push("/etc/webhook-certs/ca-cert.pem", self._stored.ca, make_dirs=True)
+        self.container.push(
+            "/etc/webhook-certs/server-cert.pem", self._stored.cert, make_dirs=True
+        )
+        self.container.push("/etc/webhook-certs/server-key.pem", self._stored.key, make_dirs=True)
 
         self.resource_handler.apply()
 
-        container.add_layer("spark", pebble_layer, combine=True)
-        container.autostart()
+        self.container.add_layer(self._container_name, self._pebble_layer, combine=True)
+        self.container.autostart()
 
         self.unit.status = ActiveStatus()
 
-    def _on_remove(self, event):
+    def _on_config_changed(self, _):
+        self.unit.status = MaintenanceStatus("Updating Spark Charm's Configurations")
+
+        self.container.add_layer(self._container_name, self._pebble_layer, combine=True)
+        self.container.replan()
+
+        self.unit.status = ActiveStatus()
+
+    def _on_remove(self, _):
         manifests = self.resource_handler.render_manifests(force_recompute=False)
         resources = apply_many(self.lightkube_client, manifests)
         try:

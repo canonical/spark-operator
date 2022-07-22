@@ -8,6 +8,7 @@ description: https://spark.apache.org/
 maintainers:
   - 'Dominik Fleischmann <dominik.fleischmann@canonical.com>'
   - 'Kenneth Koski <kenneth.koski@canonical.com>'
+  - 'Natasha Ho <natasha.ho@canonical.com>'
 tags: [spark, big-data, analytics]
 containers:
   spark:
