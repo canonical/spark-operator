@@ -17,7 +17,7 @@ from lightkube.resources.admissionregistration_v1 import MutatingWebhookConfigur
 from ops.charm import CharmBase
 from ops.framework import StoredState
 from ops.main import main
-from ops.model import ActiveStatus
+from ops.model import ActiveStatus, MaintenanceStatus
 
 log = logging.getLogger()
 
@@ -62,6 +62,7 @@ class SparkCharm(CharmBase):
         return context
 
     def _on_spark_pebble_ready(self, event):
+        self.unit.status = MaintenanceStatus("Configuring Spark Charm")
         container = event.workload
 
         # TODO: put paths in config
@@ -75,7 +76,7 @@ class SparkCharm(CharmBase):
             "services": {
                 "spark": {
                     "override": "replace",
-                    "summary": "apply image?",
+                    "summary": "Spark Operator layer",
                     "startup": "enabled",
                     "command": (
                         f"/usr/bin/tini -s -- /usr/bin/spark-operator -v=2 "

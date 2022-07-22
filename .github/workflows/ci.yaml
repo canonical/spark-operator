@@ -39,6 +39,16 @@ jobs:
     - name: Run tox
       run: tox -e lint
 
+  unit-test:
+    name: Unit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+
+      - run: pip install tox
+      - run: tox -e unit
+
   test:
     name: Test
     runs-on: ubuntu-latest
