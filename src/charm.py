@@ -22,6 +22,8 @@ log = logging.getLogger()
 
 
 class SparkCharm(CharmBase):
+    """A charm for creating Spark Applications via the Spark on k8s Operator."""
+
     _stored = StoredState()
 
     def __init__(self, *args):
