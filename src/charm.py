@@ -8,6 +8,7 @@ from pathlib import Path
 from subprocess import check_call
 
 from charmed_kubeflow_chisme.kubernetes import KubernetesResourceHandler as KRH
+from charmed_kubeflow_chisme.lightkube.batch import apply_many, delete_many
 from charms.observability_libs.v1.kubernetes_service_patch import KubernetesServicePatch
 from lightkube import Client
 from lightkube.core.exceptions import ApiError
@@ -109,10 +110,13 @@ class SparkCharm(CharmBase):
         self.unit.status = ActiveStatus()
 
     def _on_remove(self, event):
+        manifests = self.resource_handler.render_manifests(force_recompute=False)
+        resources = apply_many(self.lightkube_client, manifests)
         try:
+            delete_many(self.lightkube_client, resources)
             self.lightkube_client.delete(MutatingWebhookConfiguration, self._mutating_webhook_name)
         except ApiError as e:
-            log.warn(str(e))
+            log.warning(str(e))
 
     def gen_certs(self):
         model = self.model.name
