@@ -1,9 +1,9 @@
 # Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
-from ops.model import ActiveStatus, WaitingStatus
+from ops.model import ActiveStatus
 from ops.testing import Harness
 
 from charm import SparkCharm
