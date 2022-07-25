@@ -96,7 +96,6 @@ class SparkCharm(CharmBase):
                         f"-webhook-namespace-selector=model.juju.is/name={self.model.name} "
                         "-webhook-fail-on-error=true"
                     ),
-                    "environment": {"KUBERNETES_SERVICE_PORT": self.model.config["webhook-port"]},
                 }
             },
         }
