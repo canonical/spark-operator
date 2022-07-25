@@ -1,30 +1,16 @@
 # Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
-from unittest.mock import MagicMock, patch
-
-import pytest
 from ops.model import ActiveStatus, WaitingStatus
-from ops.testing import Harness
-
-from charm import SparkCharm
 
 
-@pytest.fixture
-def harness():
-    return Harness(SparkCharm)
-
-
-@patch("charm.KubernetesServicePatch", lambda x, y: None)
-@patch(
-    "charm.SparkCharm.gen_certs",
-    lambda _: {"cert": "fake-cert", "key": "fake-server-key", "ca": "fake-ca-cert"},
-)
-def test_pebble_ready_event(harness):
-    harness.set_leader(True)
+def test_pebble_ready_event(
+    harness,
+    mocked_lightkube_client,
+    mocked_cert,
+    mocked_kubernetes_service_patcher,
+    mocked_resource_handler,
+):
     harness.begin()
-
-    harness.charm.resource_handler.apply = MagicMock()
-    harness.charm.resource_handler.apply.return_value = None
 
     harness.set_can_connect("spark", True)
     initial_plan = harness.get_container_pebble_plan("spark")
@@ -46,14 +32,13 @@ def test_pebble_ready_event(harness):
     assert "spark-operator" in plan["spark"]["command"]
 
 
-@patch("charm.KubernetesServicePatch", MagicMock())
-@patch(
-    "charm.SparkCharm.gen_certs",
-    lambda _: {"cert": "fake-cert", "key": "fake-server-key", "ca": "fake-ca-cert"},
-)
-@patch("charm.KRH.apply", lambda x: None)
-def test_config_changed_cannot_connect(harness):
-    harness.set_leader(True)
+def test_config_changed_cannot_connect(
+    harness,
+    mocked_lightkube_client,
+    mocked_cert,
+    mocked_kubernetes_service_patcher,
+    mocked_resource_handler,
+):
     harness.begin()
 
     harness.set_can_connect("spark", False)
@@ -62,15 +47,13 @@ def test_config_changed_cannot_connect(harness):
     assert isinstance(harness.charm.unit.status, WaitingStatus)
 
 
-@patch("charm.KubernetesServicePatch", MagicMock())
-@patch("charm.KubernetesServicePatch._patch", MagicMock())
-@patch(
-    "charm.SparkCharm.gen_certs",
-    lambda _: {"cert": "fake-cert", "key": "fake-server-key", "ca": "fake-ca-cert"},
-)
-@patch("charm.KRH.apply", lambda x: None)
-def test_config_changed_webhook_port(harness):
-    harness.set_leader(True)
+def test_config_changed_webhook_port(
+    harness,
+    mocked_lightkube_client,
+    mocked_cert,
+    mocked_kubernetes_service_patcher,
+    mocked_resource_handler,
+):
     harness.begin()
 
     harness.container_pebble_ready("spark")
@@ -84,15 +67,13 @@ def test_config_changed_webhook_port(harness):
     assert "-webhook-port=1234" in plan_2["spark"]["command"]
 
 
-@patch("charm.KubernetesServicePatch", MagicMock())
-@patch("charm.KubernetesServicePatch._patch", MagicMock())
-@patch(
-    "charm.SparkCharm.gen_certs",
-    lambda _: {"cert": "fake-cert", "key": "fake-server-key", "ca": "fake-ca-cert"},
-)
-@patch("charm.KRH.apply", lambda x: None)
-def test_config_changed_metrics_port(harness):
-    harness.set_leader(True)
+def test_config_changed_metrics_port(
+    harness,
+    mocked_lightkube_client,
+    mocked_cert,
+    mocked_kubernetes_service_patcher,
+    mocked_resource_handler,
+):
     harness.begin()
 
     harness.container_pebble_ready("spark")
