@@ -47,10 +47,8 @@ class SparkCharm(CharmBase):
         self._container_name = "spark"
         self.container = self.unit.get_container(self._container_name)
 
-        self.framework.observe(self.on.install, self._on_spark_pebble_ready)
         self.framework.observe(self.on.spark_pebble_ready, self._on_spark_pebble_ready)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
-        # self.framework.observe(self.on.config_changed, self.service_patcher._patch)
         self.framework.observe(self.on.remove, self._on_remove)
 
     @property
@@ -104,13 +102,7 @@ class SparkCharm(CharmBase):
         }
         return pebble_layer
 
-    def _on_spark_pebble_ready(self, event):
-
-        if not self.container.can_connect():
-            self.unit.status = WaitingStatus("Waiting to connect to spark container")
-            event.defer()
-            return
-
+    def _on_spark_pebble_ready(self, _):
         self.unit.status = MaintenanceStatus("Configuring Spark Charm")
 
         self.container.push("/etc/webhook-certs/ca-cert.pem", self._stored.ca, make_dirs=True)
@@ -126,8 +118,15 @@ class SparkCharm(CharmBase):
 
         self.unit.status = ActiveStatus()
 
-    def _on_config_changed(self, _):
+    def _on_config_changed(self, event):
+        # check connection; config change could come before pebble ready
+        if not self.container.can_connect():
+            self.unit.status = WaitingStatus("Waiting to connect to spark container")
+            event.defer()
+            return
+
         self.unit.status = MaintenanceStatus("Updating Spark Charm's Configurations")
+        self.service_patcher._patch(self.service_patcher)
 
         self.container.add_layer(self._container_name, self._pebble_layer, combine=True)
         self.container.replan()
