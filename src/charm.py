@@ -47,6 +47,7 @@ class SparkCharm(CharmBase):
         self._container_name = "spark"
         self.container = self.unit.get_container(self._container_name)
 
+        self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.spark_pebble_ready, self._on_spark_pebble_ready)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.remove, self._on_remove)
@@ -101,6 +102,9 @@ class SparkCharm(CharmBase):
         }
         return pebble_layer
 
+    def _on_install(self, _):
+        self.resource_handler.apply()
+
     def _on_spark_pebble_ready(self, event):
         if not self.container.can_connect():
             self.unit.status = WaitingStatus("Waiting to connect to spark container")
@@ -114,8 +118,6 @@ class SparkCharm(CharmBase):
             "/etc/webhook-certs/server-cert.pem", self._stored.cert, make_dirs=True
         )
         self.container.push("/etc/webhook-certs/server-key.pem", self._stored.key, make_dirs=True)
-
-        self.resource_handler.apply()
 
         self.container.add_layer(self._container_name, self._pebble_layer, combine=True)
         self.container.autostart()
