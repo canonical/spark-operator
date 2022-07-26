@@ -5,5 +5,4 @@ ops==1.5.0
 lightkube
 lightkube-models
 jinja2
-# charmed-kubeflow-chisme
-git+https://github.com/canonical/charmed-kubeflow-chisme@fix-delete-many
+charmed-kubeflow-chisme

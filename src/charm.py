@@ -4,6 +4,7 @@
 
 import glob
 import logging
+import traceback
 from pathlib import Path
 from subprocess import check_call
 
@@ -17,7 +18,8 @@ from lightkube.resources.admissionregistration_v1 import MutatingWebhookConfigur
 from ops.charm import CharmBase
 from ops.framework import StoredState
 from ops.main import main
-from ops.model import ActiveStatus, MaintenanceStatus, WaitingStatus
+from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
+from ops.pebble import ChangeError, Layer
 
 log = logging.getLogger()
 
@@ -67,7 +69,7 @@ class SparkCharm(CharmBase):
         return context
 
     @property
-    def _pebble_layer(self):
+    def _spark_operator_layer(self) -> Layer:
         pebble_layer = {
             "summary": "spark layer",
             "description": "pebble config layer for spark-k8s",
@@ -100,46 +102,69 @@ class SparkCharm(CharmBase):
                 }
             },
         }
-        return pebble_layer
+        return Layer(pebble_layer)
 
-    def _on_install(self, _):
-        self.resource_handler.apply()
+    def _update_layer(self) -> None:
+        """Updates the Pebble configuration layer if changed."""
 
-    def _on_spark_pebble_ready(self, event):
-        if not self.container.can_connect():
-            self.unit.status = WaitingStatus("Waiting to connect to spark container")
-            event.defer()
-            return
+        current_layer = self.container.get_plan()
+        new_layer = self._spark_operator_layer
 
-        self.unit.status = MaintenanceStatus("Configuring Spark Charm")
+        if current_layer.services != new_layer.services:
+            self.container.add_layer(self._container_name, new_layer, combine=True)
+            try:
+                log.info("Pebble plan updated with new configuration, replanning")
+                self.container.replan()
+            except ChangeError as e:
+                log.error(traceback.format_exc())
+                self.unit.status = BlockedStatus("Failed to replan")
+                raise e
+                return
 
+    def _update_webhook_certs(self) -> None:
         self.container.push("/etc/webhook-certs/ca-cert.pem", self._stored.ca, make_dirs=True)
         self.container.push(
             "/etc/webhook-certs/server-cert.pem", self._stored.cert, make_dirs=True
         )
         self.container.push("/etc/webhook-certs/server-key.pem", self._stored.key, make_dirs=True)
+        log.info("Pushed webhook keys and certs to spark container")
 
-        self.container.add_layer(self._container_name, self._pebble_layer, combine=True)
-        self.container.autostart()
+    def _on_install(self, _):
+        """Event Handler for install event."""
+        self.resource_handler.apply()
+
+        if self.container.can_connect():
+            self._update_webhook_certs()
+
+    def _on_spark_pebble_ready(self, event):
+        """Event Handler for spark pebble ready event."""
+        if not self.container.can_connect():
+            self.unit.status = MaintenanceStatus("Waiting to connect to spark container")
+            event.defer()
+            return
+
+        self.unit.status = MaintenanceStatus("Configuring Spark Charm")
+        self._update_webhook_certs()
+        self._update_layer()
 
         self.unit.status = ActiveStatus()
 
     def _on_config_changed(self, event):
-        # check connection; config change could come before pebble ready
+        """Event Handler for config changed event."""
         if not self.container.can_connect():
-            self.unit.status = WaitingStatus("Waiting to connect to spark container")
+            self.unit.status = MaintenanceStatus("Waiting to connect to spark container")
             event.defer()
             return
 
         self.unit.status = MaintenanceStatus("Updating Spark Charm's Configurations")
         self.service_patcher._patch(self.service_patcher)
-
-        self.container.add_layer(self._container_name, self._pebble_layer, combine=True)
-        self.container.replan()
+        self._update_webhook_certs()
+        self._update_layer()
 
         self.unit.status = ActiveStatus()
 
     def _on_remove(self, _):
+        """Event Handler for remove event."""
         manifests = self.resource_handler.render_manifests(force_recompute=False)
         resources = apply_many(self.lightkube_client, manifests)
         try:
@@ -149,6 +174,7 @@ class SparkCharm(CharmBase):
             log.warning(str(e))
 
     def gen_certs(self):
+        """Generate webhook keys and certs."""
         model = self.model.name
         app = self.model.app.name
         Path("/run/ssl.conf").write_text(
