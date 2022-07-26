@@ -122,6 +122,8 @@ class SparkCharm(CharmBase):
                 return
 
     def _update_webhook_certs(self) -> None:
+        """Push keys and certs files into spark container"""
+
         self.container.push("/etc/webhook-certs/ca-cert.pem", self._stored.ca, make_dirs=True)
         self.container.push(
             "/etc/webhook-certs/server-cert.pem", self._stored.cert, make_dirs=True
