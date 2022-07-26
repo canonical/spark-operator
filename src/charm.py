@@ -52,6 +52,7 @@ class SparkCharm(CharmBase):
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.spark_pebble_ready, self._on_spark_pebble_ready)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
+        self.framework.observe(self.on.config_changed, self.service_patcher._patch)
         self.framework.observe(self.on.remove, self._on_remove)
 
     @property
@@ -131,6 +132,18 @@ class SparkCharm(CharmBase):
         self.container.push("/etc/webhook-certs/server-key.pem", self._stored.key, make_dirs=True)
         log.info("Pushed webhook keys and certs to spark container")
 
+    def _update_spark_container(self) -> None:
+        if not self.container.can_connect():
+            self.unit.status = MaintenanceStatus("Waiting to connect to spark container")
+            return
+
+        self.unit.status = MaintenanceStatus("Configuring Spark Charm")
+
+        self._update_webhook_certs()
+        self._update_layer()
+
+        self.unit.status = ActiveStatus()
+
     def _on_install(self, _):
         """Event Handler for install event."""
         self.resource_handler.apply()
@@ -138,32 +151,13 @@ class SparkCharm(CharmBase):
         if self.container.can_connect():
             self._update_webhook_certs()
 
-    def _on_spark_pebble_ready(self, event):
+    def _on_spark_pebble_ready(self, _):
         """Event Handler for spark pebble ready event."""
-        if not self.container.can_connect():
-            self.unit.status = MaintenanceStatus("Waiting to connect to spark container")
-            event.defer()
-            return
+        self._update_spark_container()
 
-        self.unit.status = MaintenanceStatus("Configuring Spark Charm")
-        self._update_webhook_certs()
-        self._update_layer()
-
-        self.unit.status = ActiveStatus()
-
-    def _on_config_changed(self, event):
+    def _on_config_changed(self, _):
         """Event Handler for config changed event."""
-        if not self.container.can_connect():
-            self.unit.status = MaintenanceStatus("Waiting to connect to spark container")
-            event.defer()
-            return
-
-        self.unit.status = MaintenanceStatus("Updating Spark Charm's Configurations")
-        self.service_patcher._patch(self.service_patcher)
-        self._update_webhook_certs()
-        self._update_layer()
-
-        self.unit.status = ActiveStatus()
+        self._update_spark_container()
 
     def _on_remove(self, _):
         """Event Handler for remove event."""
