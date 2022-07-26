@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2021 Canonical Ltd.
+# Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
 
 import glob
@@ -101,7 +101,12 @@ class SparkCharm(CharmBase):
         }
         return pebble_layer
 
-    def _on_spark_pebble_ready(self, _):
+    def _on_spark_pebble_ready(self, event):
+        if not self.container.can_connect():
+            self.unit.status = WaitingStatus("Waiting to connect to spark container")
+            event.defer()
+            return
+
         self.unit.status = MaintenanceStatus("Configuring Spark Charm")
 
         self.container.push("/etc/webhook-certs/ca-cert.pem", self._stored.ca, make_dirs=True)
