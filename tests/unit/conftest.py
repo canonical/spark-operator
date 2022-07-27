@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 from ops.testing import Harness
 
-from charm import SparkCharm
+from charm import KubernetesServicePatch, SparkCharm
 
 
 @pytest.fixture
@@ -36,9 +36,10 @@ def mocked_cert(mocker):
 
 @pytest.fixture()
 def mocked_kubernetes_service_patcher(mocker):
-    mocked_patcher = mocker.patch("charm.KubernetesServicePatch")
-    mocked_patcher.return_value = MagicMock()
-    yield mocked_patcher
+    mocker.patch.object(KubernetesServicePatch, "_namespace", lambda x, y: "")
+    mocker.patch.object(KubernetesServicePatch, "_patch", lambda x, y: None)
+
+    yield
 
 
 @pytest.fixture()
