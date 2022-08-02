@@ -1,6 +1,6 @@
 # Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
-from ops.model import ActiveStatus, MaintenanceStatus
+from ops.model import ActiveStatus, WaitingStatus
 
 
 def test_pebble_ready_event(
@@ -44,7 +44,7 @@ def test_config_changed_cannot_connect(
     harness.set_can_connect("spark", False)
     harness.charm.on.config_changed.emit()
 
-    assert isinstance(harness.charm.unit.status, MaintenanceStatus)
+    assert isinstance(harness.charm.unit.status, WaitingStatus)
 
 
 def test_config_changed_metrics_port(
