@@ -47,26 +47,6 @@ def test_config_changed_cannot_connect(
     assert isinstance(harness.charm.unit.status, MaintenanceStatus)
 
 
-def test_config_changed_webhook_port(
-    harness,
-    mocked_lightkube_client,
-    mocked_cert,
-    mocked_kubernetes_service_patcher,
-    mocked_resource_handler,
-):
-    harness.begin()
-
-    harness.container_pebble_ready("spark")
-
-    plan_1 = harness.get_container_pebble_plan("spark").to_dict()["services"]
-    assert "-webhook-port=443" in plan_1["spark"]["command"]
-
-    harness.update_config({"webhook-port": "1234"})
-    plan_2 = harness.get_container_pebble_plan("spark").to_dict()["services"]
-
-    assert "-webhook-port=1234" in plan_2["spark"]["command"]
-
-
 def test_config_changed_metrics_port(
     harness,
     mocked_lightkube_client,

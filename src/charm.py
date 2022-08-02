@@ -8,8 +8,9 @@ import traceback
 from pathlib import Path
 from subprocess import check_call
 
+from charmed_kubeflow_chisme.exceptions import ErrorWithStatus
 from charmed_kubeflow_chisme.kubernetes import KubernetesResourceHandler as KRH
-from charmed_kubeflow_chisme.lightkube.batch import apply_many, delete_many
+from charmed_kubeflow_chisme.lightkube.batch import delete_many
 from charms.observability_libs.v1.kubernetes_service_patch import KubernetesServicePatch
 from lightkube import Client
 from lightkube.core.exceptions import ApiError
@@ -18,8 +19,8 @@ from lightkube.resources.admissionregistration_v1 import MutatingWebhookConfigur
 from ops.charm import CharmBase
 from ops.framework import StoredState
 from ops.main import main
-from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus
-from ops.pebble import ChangeError, Layer
+from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
+from ops.pebble import ChangeError, Layer, PathError, ProtocolError
 
 log = logging.getLogger()
 
@@ -124,17 +125,23 @@ class SparkCharm(CharmBase):
 
     def _update_webhook_certs(self) -> None:
         """Push keys and certs files into spark container"""
+        try:
+            self.container.push("/etc/webhook-certs/ca-cert.pem", self._stored.ca, make_dirs=True)
+            self.container.push(
+                "/etc/webhook-certs/server-cert.pem", self._stored.cert, make_dirs=True
+            )
+            self.container.push(
+                "/etc/webhook-certs/server-key.pem", self._stored.key, make_dirs=True
+            )
+            log.info("Pushed webhook keys and certs to spark container")
+        except (ProtocolError, PathError) as e:
+            log.error(str(e))
+            self.unit.status = BlockedStatus(str(e))
 
-        self.container.push("/etc/webhook-certs/ca-cert.pem", self._stored.ca, make_dirs=True)
-        self.container.push(
-            "/etc/webhook-certs/server-cert.pem", self._stored.cert, make_dirs=True
-        )
-        self.container.push("/etc/webhook-certs/server-key.pem", self._stored.key, make_dirs=True)
-        log.info("Pushed webhook keys and certs to spark container")
-
-    def _update_spark_container(self) -> None:
+    def _update_spark_container(self, event) -> None:
         if not self.container.can_connect():
-            self.unit.status = MaintenanceStatus("Waiting to connect to spark container")
+            self.unit.status = WaitingStatus("Waiting to connect to spark container")
+            event.defer()
             return
 
         self.unit.status = MaintenanceStatus("Configuring Spark Charm")
@@ -146,25 +153,36 @@ class SparkCharm(CharmBase):
 
     def _on_install(self, _):
         """Event Handler for install event."""
-        self.resource_handler.apply()
+        self.unit.status = MaintenanceStatus("Configuring/deploying resources")
 
         if self.container.can_connect():
             self._update_webhook_certs()
 
-    def _on_spark_pebble_ready(self, _):
-        """Event Handler for spark pebble ready event."""
-        self._update_spark_container()
+        try:
+            self.resource_handler.apply()
+        except (ApiError, ErrorWithStatus) as e:
+            if isinstance(e, ApiError):
+                log.error(f"Applying resources failed with ApiError status code {e.status.code}")
+                self.unit.status = BlockedStatus(f"ApiError: {e.status.code}")
+            else:
+                log.info(e.msg)
+                self.unit.status = e.status
+        else:
+            self.unit.status = ActiveStatus()
 
-    def _on_config_changed(self, _):
+    def _on_spark_pebble_ready(self, event):
+        """Event Handler for spark pebble ready event."""
+        self._update_spark_container(event)
+
+    def _on_config_changed(self, event):
         """Event Handler for config changed event."""
-        self._update_spark_container()
+        self._update_spark_container(event)
 
     def _on_remove(self, _):
         """Event Handler for remove event."""
         manifests = self.resource_handler.render_manifests(force_recompute=False)
-        resources = apply_many(self.lightkube_client, manifests)
         try:
-            delete_many(self.lightkube_client, resources)
+            delete_many(self.lightkube_client, manifests)
             self.lightkube_client.delete(MutatingWebhookConfiguration, self._mutating_webhook_name)
         except ApiError as e:
             log.warning(str(e))
