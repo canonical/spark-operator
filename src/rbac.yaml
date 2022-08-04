@@ -1,0 +1,186 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{  app_name  }}-driver-account
+  annotations:
+    model.juju.is/name: {{  app_name  }}
+  labels:
+    app.kubernetes.io/name: {{  app_name  }}
+    app.juju.is/created-by: {{  app_name  }}
+    app.kubernetes.io/managed-by: juju
+    app.kubernetes.io/created-by: lightkube
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{  model_name  }}-{{  app_name  }}-clusterrole
+  annotations:
+    model.juju.is/name: {{  app_name  }}
+  labels:
+    app.kubernetes.io/name: {{  app_name  }}
+    app.juju.is/created-by: {{  app_name  }}
+    app.kubernetes.io/managed-by: juju
+    app.kubernetes.io/created-by: lightkube
+rules:
+  - apiGroups:
+      - ''
+    resources:
+      - pods
+    verbs:
+      - '*'
+  - apiGroups:
+      - ''
+    resources:
+      - services
+      - configmaps
+      - secrets
+    verbs:
+      - create
+      - get
+      - delete
+      - update
+  - apiGroups:
+      - extensions
+      - networking.k8s.io
+    resources:
+      - ingresses
+    verbs:
+      - create
+      - get
+      - delete
+  - apiGroups:
+      - ''
+    resources:
+      - nodes
+    verbs:
+      - get
+  - apiGroups:
+      - ''
+    resources:
+      - events
+    verbs:
+      - create
+      - update
+      - patch
+  - apiGroups:
+      - ''
+    resources:
+      - resourcequotas
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - apiextensions.k8s.io
+    resources:
+      - customresourcedefinitions
+    verbs:
+      - create
+      - get
+      - update
+      - delete
+  - apiGroups:
+      - admissionregistration.k8s.io
+    resources:
+      - mutatingwebhookconfigurations
+      - validatingwebhookconfigurations
+    verbs:
+      - create
+      - get
+      - update
+      - delete
+  - apiGroups:
+      - sparkoperator.k8s.io
+    resources:
+      - sparkapplications
+      - sparkapplications/status
+      - scheduledsparkapplications
+      - scheduledsparkapplications/status
+    verbs:
+      - '*'
+  - apiGroups:
+      - batch
+    resources:
+      - jobs
+    verbs:
+      - delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{  app_name  }}-role
+  annotations:
+    model.juju.is/name: {{  app_name  }}
+  labels:
+    app.kubernetes.io/name: {{  app_name  }}
+    app.juju.is/created-by: {{  app_name  }}
+    app.kubernetes.io/managed-by: juju
+    app.kubernetes.io/created-by: lightkube
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - '*'
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - '*'
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - '*'
+- apiGroups:
+  - ""
+  resources:
+  - persistentvolumeclaims
+  verbs:
+  - '*'
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{  app_name  }}-driver-rolebinding
+  annotations:
+    model.juju.is/name: {{  app_name  }}
+  labels:
+    app.kubernetes.io/name: {{  app_name  }}
+    app.juju.is/created-by: {{  app_name  }}
+    app.kubernetes.io/managed-by: juju
+    app.kubernetes.io/created-by: lightkube
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{  app_name  }}-role
+subjects:
+- kind: ServiceAccount
+  name: {{ app_name }}-driver-account
+  namespace: {{ model_name }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  metadata:
+  name: {{  model_name  }}-{{  app_name  }}-driver-clusterrolebinding
+  annotations:
+    model.juju.is/name: {{  app_name  }}
+  labels:
+    app.kubernetes.io/name: {{  app_name  }}
+    app.juju.is/created-by: {{  app_name  }}
+    app.kubernetes.io/managed-by: juju
+    app.kubernetes.io/created-by: lightkube
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{  model_name  }}-{{  app_name  }}-clusterrole
+subjects:
+- kind: ServiceAccount
+  name: {{ app_name }}-driver-account
+  namespace: {{ model_name }}
+

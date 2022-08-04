@@ -2,9 +2,10 @@
 # See LICENSE file for licensing details.
 
 import logging
-import yaml
-import pytest
 from pathlib import Path
+
+import pytest
+import yaml
 from lightkube import Client
 from lightkube.generic_resource import create_namespaced_resource
 

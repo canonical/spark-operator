@@ -1,5 +1,8 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-ops==1.1.0
-git+https://github.com/juju-solutions/resource-oci-image@1964d748022b762b9dce6e8bb7bdf12835102c72
+ops==1.5.0
+lightkube
+lightkube-models
+jinja2
+charmed-kubeflow-chisme

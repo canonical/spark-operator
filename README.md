@@ -9,7 +9,7 @@ Upstream documentation can be found at https://github.com/GoogleCloudPlatform/sp
 
 The Spark Operator may be deployed using the Juju command line as follows
 ```bash
-juju deploy spark-k8s
+juju deploy spark-k8s --trust
 ```
 
 ## Looking for a fully supported platform for MLOps?

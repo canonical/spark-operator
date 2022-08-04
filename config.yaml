@@ -9,4 +9,4 @@ options:
   webhook-port:
     type: string
     default: '443'
-    description: Webhook port
+    description: Webhook port, must be set on deploy
