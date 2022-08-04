@@ -70,8 +70,10 @@ class SparkCharm(CharmBase):
         }
         return context
 
-    @property
-    def _spark_operator_layer(self) -> Layer:
+    def _spark_operator_layer(self, webhook_port=None) -> Layer:
+        if webhook_port is None:
+            webhook_port = self.model.config["webhook-port"]
+
         pebble_layer = {
             "summary": "spark layer",
             "description": "pebble config layer for spark-k8s",
@@ -95,12 +97,13 @@ class SparkCharm(CharmBase):
                         "-enable-resource-quota-enforcement=false "
                         "-enable-webhook=true "
                         f"-webhook-svc-namespace={self.model.name} "
-                        f"-webhook-port={self.model.config['webhook-port']} "
+                        f"-webhook-port={webhook_port} "
                         f"-webhook-svc-name={self.model.app.name} "
                         f"-webhook-config-name={self._mutating_webhook_name} "
                         f"-webhook-namespace-selector=model.juju.is/name={self.model.name} "
                         "-webhook-fail-on-error=true"
                     ),
+                    "environment": {"webhook-port": webhook_port},
                 }
             },
         }
@@ -110,10 +113,23 @@ class SparkCharm(CharmBase):
         """Updates the Pebble configuration layer if changed."""
 
         current_layer = self.container.get_plan()
-        new_layer = self._spark_operator_layer
+        current_webhook_port = (
+            current_layer.services[self._container_name].environment["webhook-port"]
+            if current_layer.services
+            else self.model.config["webhook-port"]
+        )
+        new_layer = self._spark_operator_layer()
 
         if current_layer.services != new_layer.services:
+            if current_webhook_port != self.model.config["webhook-port"]:
+                log.error(
+                    f"Cannot change webhook port after initial deploy. \
+                        Reverting webhook port to {current_webhook_port}"
+                )
+                new_layer = self._spark_operator_layer(current_webhook_port)
+
             self.container.add_layer(self._container_name, new_layer, combine=True)
+
             try:
                 log.info("Pebble plan updated with new configuration, replanning")
                 self.container.replan()
