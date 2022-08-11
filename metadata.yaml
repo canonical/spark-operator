@@ -22,6 +22,8 @@ resources:
 provides:
   spark:
     interface: spark
+  metrics-endpoint:
+    interface: prometheus_scrape
 requires:
   prometheus:
     interface: prometheus
