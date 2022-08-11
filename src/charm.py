@@ -12,6 +12,7 @@ from charmed_kubeflow_chisme.exceptions import ErrorWithStatus
 from charmed_kubeflow_chisme.kubernetes import KubernetesResourceHandler as KRH
 from charmed_kubeflow_chisme.lightkube.batch import delete_many
 from charms.observability_libs.v1.kubernetes_service_patch import KubernetesServicePatch
+from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from lightkube import Client
 from lightkube.core.exceptions import ApiError
 from lightkube.models.core_v1 import ServicePort
@@ -24,6 +25,8 @@ from ops.pebble import ChangeError, Layer, PathError, ProtocolError
 
 log = logging.getLogger()
 
+REL_NAME = "prometheus-k8s"
+
 
 class SparkCharm(CharmBase):
     """A charm for creating Spark Applications via the Spark on k8s Operator."""
@@ -32,6 +35,18 @@ class SparkCharm(CharmBase):
 
     def __init__(self, *args):
         super().__init__(*args)
+
+        jobs = [
+            {
+                "static_configs": [
+                    {
+                        "targets": ["*:8080"],
+                    }
+                ],
+            }
+        ]
+
+        self.metrics_endpoint = MetricsEndpointProvider(self, jobs=jobs)
 
         self._stored.set_default(**self.gen_certs())
 
@@ -55,6 +70,13 @@ class SparkCharm(CharmBase):
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.config_changed, self.service_patcher._patch)
         self.framework.observe(self.on.remove, self._on_remove)
+
+    @property
+    def monitoring_address(self):
+        binding = self.model.get_binding("metrics-endpoint")
+        if not binding:
+            return None
+        return str(binding.network.ingress_address or binding.network.bind_address)
 
     @property
     def _template_files(self):
