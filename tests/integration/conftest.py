@@ -1,8 +1,11 @@
 # Copyright 2021 Canonical Ltd.
 # See LICENSE file for licensing details.
 
+import json
 import logging
+import subprocess
 from pathlib import Path
+from urllib.parse import urlencode
 
 import pytest
 import yaml
@@ -74,3 +77,34 @@ class Helpers:
             raise ValueError("Upstream source not found")
 
         return upstream_source
+
+    async def juju_run(self, unit, cmd):
+        """Run a command on a unit and return the output."""
+        action = await unit.run(cmd)
+        result = await action.wait()
+        code = result.results["return-code"]
+        stdout = result.results.get("stdout")
+        stderr = result.results.get("stderr")
+        assert code == 0, f"{cmd} failed ({code}): {stderr or stdout}"
+        return stdout
+
+    async def query_prometheus(self, ops_test, query):
+        prometheus_unit = ops_test.model.applications["prometheus-k8s"].units[0]
+        assert prometheus_unit.workload_status == "active"
+
+        unitip = await self.juju_run(prometheus_unit, "hostname -I")
+        unitip = unitip.rstrip("\n").rstrip(" ")
+
+        # Query pods.
+        query = {"query": query}
+        qs = urlencode(query)
+        url = f"http://{unitip}:9090/api/v1/query?{qs}"
+        result = subprocess.run(
+            ["curl", url], check=True, stdout=subprocess.PIPE, universal_newlines=True
+        )
+
+        try:
+            return json.loads(result.stdout)
+        except json.JSONDecodeError:
+            log.error(f"Failed to parse query results: {result.stdout}")
+            raise
