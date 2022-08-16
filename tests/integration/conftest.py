@@ -3,6 +3,7 @@
 
 import json
 import logging
+import subprocess
 from pathlib import Path
 from urllib.parse import urlencode
 
@@ -91,13 +92,19 @@ class Helpers:
         prometheus_unit = ops_test.model.applications["prometheus-k8s"].units[0]
         assert prometheus_unit.workload_status == "active"
 
+        unitip = await self.juju_run(prometheus_unit, "hostname -I")
+        unitip = unitip.rstrip("\n").rstrip(" ")
+
         # Query pods.
         query = {"query": query}
         qs = urlencode(query)
-        url = f"http://localhost:9090/api/v1/query?{qs}"
-        output = await self.juju_run(prometheus_unit, f"curl '{url}'")
+        url = f"http://{unitip}:9090/api/v1/query?{qs}"
+        result = subprocess.run(
+            ["curl", url], check=True, stdout=subprocess.PIPE, universal_newlines=True
+        )
+
         try:
-            return json.loads(output)
+            return json.loads(result.stdout)
         except json.JSONDecodeError:
-            log.error(f"Failed to parse query results: {output}")
+            log.error(f"Failed to parse query results: {result.stdout}")
             raise
